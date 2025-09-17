@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IQS550 Trackpad Touch Visualizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .connect-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .connect-btn:hover {
+            background-color: #45a049;
+        }
+
+        .connect-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .disconnect-btn {
+            background-color: #f44336;
+            color: white;
+        }
+
+        .disconnect-btn:hover {
+            background-color: #da190b;
+        }
+
+        .clear-btn {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .clear-btn:hover {
+            background-color: #1976D2;
+        }
+
+        .status {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .canvas-container {
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            background-color: #1a1a1a;
+        }
+
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            gap: 20px;
+        }
+
+        .info-box {
+            flex: 1;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .info-box h3 {
+            margin-top: 0;
+            color: #495057;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #212529;
+            margin-bottom: 5px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .trail-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .trail-toggle input[type="checkbox"] {
+            transform: scale(1.5);
+        }
+
+        .instructions {
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            color: #1565c0;
+        }
+
+        .instructions ul {
+            margin-bottom: 0;
+        }
+
+        .unsupported {
+            background-color: #ffebee;
+            border: 1px solid #ffcdd2;
+            color: #c62828;
+            text-align: center;
+            padding: 20px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 IQS550 Trackpad Touch Visualizer</h1>
+
+        <div id="unsupported" class="unsupported" style="display: none;">
+            <h3>⚠️ WebSerial Not Supported</h3>
+            <p>Your browser doesn't support WebSerial API. Please use Chrome, Edge, or Opera (version 89+) to use this tool.</p>
+        </div>
+
+        <div id="supported">
+            <div class="instructions">
+                <h3>📋 Instructions</h3>
+                <ul>
+                    <li>Make sure your ESP32 with IQS550 trackpad is connected via USB</li>
+                    <li>Upload the trackpad code that outputs CSV data (x,y,strength)</li>
+                    <li>Click "Connect to Serial" and select your device</li>
+                    <li>Touch the trackpad to see real-time visualization!</li>
+                </ul>
+            </div>
+
+            <div class="controls">
+                <button id="connectBtn" class="connect-btn">Connect to Serial</button>
+                <button id="disconnectBtn" class="disconnect-btn" disabled>Disconnect</button>
+                <button id="clearBtn" class="clear-btn">Clear Trail</button>
+            </div>
+
+            <div class="trail-toggle">
+                <input type="checkbox" id="showTrail" checked>
+                <label for="showTrail">Show touch trail</label>
+            </div>
+
+            <div id="status" class="status disconnected">Disconnected - Click "Connect to Serial" to start</div>
+
+            <div class="canvas-container">
+                <canvas id="touchCanvas" width="800" height="600"></canvas>
+            </div>
+
+            <div class="info-panel">
+                <div class="info-box">
+                    <h3>X Position</h3>
+                    <div id="xValue" class="info-value">0</div>
+                    <div class="info-label">pixels</div>
+                </div>
+                <div class="info-box">
+                    <h3>Y Position</h3>
+                    <div id="yValue" class="info-value">0</div>
+                    <div class="info-label">pixels</div>
+                </div>
+                <div class="info-box">
+                    <h3>Touch Strength</h3>
+                    <div id="strengthValue" class="info-value">0</div>
+                    <div class="info-label">/ 30 max</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class TouchVisualizer {
+            constructor() {
+                this.canvas = document.getElementById('touchCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.port = null;
+                this.reader = null;
+                this.isConnected = false;
+                this.showTrail = true;
+                this.touchHistory = [];
+                this.maxHistory = 50;
+                
+                // IQS550 resolution (typical values)
+                this.trackpadMaxX = 1023; // 10-bit resolution
+                this.trackpadMaxY = 1023; // 10-bit resolution
+
+                this.initializeUI();
+                this.startAnimation();
+                this.checkWebSerialSupport();
+            }
+
+            checkWebSerialSupport() {
+                if (!('serial' in navigator)) {
+                    document.getElementById('unsupported').style.display = 'block';
+                    document.getElementById('supported').style.display = 'none';
+                }
+            }
+
+            initializeUI() {
+                document.getElementById('connectBtn').addEventListener('click', () => this.connect());
+                document.getElementById('disconnectBtn').addEventListener('click', () => this.disconnect());
+                document.getElementById('clearBtn').addEventListener('click', () => this.clearTrail());
+                document.getElementById('showTrail').addEventListener('change', (e) => {
+                    this.showTrail = e.target.checked;
+                    if (!this.showTrail) {
+                        this.touchHistory = [];
+                    }
+                });
+
+                // Initialize canvas
+                this.ctx.fillStyle = '#1a1a1a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                this.drawGrid();
+            }
+
+            async connect() {
+                try {
+                    this.port = await navigator.serial.requestPort();
+                    await this.port.open({ baudRate: 115200 });
+                    
+                    this.isConnected = true;
+                    this.updateConnectionStatus(true);
+                    this.startReading();
+                    
+                } catch (error) {
+                    console.error('Connection error:', error);
+                    this.updateConnectionStatus(false, 'Connection failed: ' + error.message);
+                }
+            }
+
+            async disconnect() {
+                if (this.reader) {
+                    await this.reader.cancel();
+                    this.reader = null;
+                }
+                
+                if (this.port) {
+                    await this.port.close();
+                    this.port = null;
+                }
+                
+                this.isConnected = false;
+                this.updateConnectionStatus(false);
+            }
+
+            updateConnectionStatus(connected, message = '') {
+                const statusEl = document.getElementById('status');
+                const connectBtn = document.getElementById('connectBtn');
+                const disconnectBtn = document.getElementById('disconnectBtn');
+                
+                if (connected) {
+                    statusEl.className = 'status connected';
+                    statusEl.textContent = message || 'Connected - Receiving data...';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                } else {
+                    statusEl.className = 'status disconnected';
+                    statusEl.textContent = message || 'Disconnected - Click "Connect to Serial" to start';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                }
+            }
+
+            async startReading() {
+                const textDecoder = new TextDecoderStream();
+                const readableStreamClosed = this.port.readable.pipeTo(textDecoder.writable);
+                this.reader = textDecoder.readable.getReader();
+
+                let buffer = '';
+
+                try {
+                    while (this.isConnected) {
+                        const { value, done } = await this.reader.read();
+                        if (done) break;
+
+                        buffer += value;
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop(); // Keep incomplete line in buffer
+
+                        for (const line of lines) {
+                            this.processSerialData(line.trim());
+                        }
+                    }
+                } catch (error) {
+                    console.error('Reading error:', error);
+                } finally {
+                    this.reader.releaseLock();
+                }
+            }
+
+            processSerialData(data) {
+                if (!data) return;
+                
+                // Parse CSV data: x,y,strength
+                const parts = data.split(',');
+                if (parts.length !== 3) return;
+
+                const x = parseInt(parts[0]);
+                const y = parseInt(parts[1]);
+                const strength = parseInt(parts[2]);
+
+                // Validate data
+                if (isNaN(x) || isNaN(y) || isNaN(strength)) return;
+                
+                // Skip invalid touch data (typically 0,65535,0 means no touch)
+                if ((x === 0 && y === 65535 && strength === 0) || strength === 0) return;
+
+                this.updateTouchData(x, y, strength);
+            }
+
+            updateTouchData(rawX, rawY, strength) {
+                // Convert trackpad coordinates to canvas coordinates
+                const x = (rawX / this.trackpadMaxX) * this.canvas.width;
+                const y = (rawY / this.trackpadMaxY) * this.canvas.height;
+
+                // Update info display
+                document.getElementById('xValue').textContent = rawX;
+                document.getElementById('yValue').textContent = rawY;
+                document.getElementById('strengthValue').textContent = strength;
+
+                // Add to history for trail effect
+                if (this.showTrail) {
+                    this.touchHistory.push({ x, y, strength, timestamp: Date.now() });
+                    if (this.touchHistory.length > this.maxHistory) {
+                        this.touchHistory.shift();
+                    }
+                } else {
+                    this.touchHistory = [{ x, y, strength, timestamp: Date.now() }];
+                }
+            }
+
+            drawGrid() {
+                this.ctx.strokeStyle = '#333';
+                this.ctx.lineWidth = 1;
+                
+                // Vertical lines
+                for (let i = 0; i <= 8; i++) {
+                    const x = (i / 8) * this.canvas.width;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+                
+                // Horizontal lines
+                for (let i = 0; i <= 6; i++) {
+                    const y = (i / 6) * this.canvas.height;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
+            }
+
+            draw() {
+                // Clear canvas
+                this.ctx.fillStyle = '#1a1a1a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw grid
+                this.drawGrid();
+
+                if (this.touchHistory.length === 0) return;
+
+                // Draw touch trail
+                const now = Date.now();
+                
+                for (let i = 0; i < this.touchHistory.length; i++) {
+                    const touch = this.touchHistory[i];
+                    const age = now - touch.timestamp;
+                    const maxAge = 2000; // 2 seconds
+                    
+                    if (age > maxAge) continue;
+                    
+                    // Calculate opacity based on age and position in array
+                    const ageOpacity = Math.max(0, 1 - (age / maxAge));
+                    const positionOpacity = (i + 1) / this.touchHistory.length;
+                    const opacity = ageOpacity * positionOpacity;
+                    
+                    // Calculate size based on strength (0-30 range)
+                    const baseSize = 10;
+                    const maxSize = 40;
+                    const size = baseSize + ((touch.strength / 30) * (maxSize - baseSize));
+                    
+                    // Draw touch point
+                    this.ctx.save();
+                    this.ctx.globalAlpha = opacity;
+                    
+                    // Create gradient for better visual effect
+                    const gradient = this.ctx.createRadialGradient(
+                        touch.x, touch.y, 0,
+                        touch.x, touch.y, size
+                    );
+                    gradient.addColorStop(0, '#00ff88');
+                    gradient.addColorStop(0.7, '#0088ff');
+                    gradient.addColorStop(1, 'transparent');
+                    
+                    this.ctx.fillStyle = gradient;
+                    this.ctx.beginPath();
+                    this.ctx.arc(touch.x, touch.y, size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    this.ctx.restore();
+                }
+
+                // Draw the most recent touch with a ring
+                if (this.touchHistory.length > 0) {
+                    const latest = this.touchHistory[this.touchHistory.length - 1];
+                    const size = 10 + ((latest.strength / 30) * 30);
+                    
+                    this.ctx.strokeStyle = '#ffffff';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    this.ctx.arc(latest.x, latest.y, size + 5, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                }
+            }
+
+            clearTrail() {
+                this.touchHistory = [];
+            }
+
+            startAnimation() {
+                const animate = () => {
+                    this.draw();
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+        }
+
+        // Initialize the visualizer when the page loads
+        window.addEventListener('load', () => {
+            new TouchVisualizer();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+#######################################
+# Syntax Coloring Map For IQS5XX-B000 Trackpad Library
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+IQS5XX_B000_Trackpad	KEYWORD1
+TouchData	KEYWORD1
+TouchState	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+isConnected	KEYWORD2
+getProductNumber	KEYWORD2
+getVersionInfo	KEYWORD2
+getSystemFlags	KEYWORD2
+needsReset	KEYWORD2
+readTouchData	KEYWORD2
+getTouchState	KEYWORD2
+getTouchX	KEYWORD2
+getTouchY	KEYWORD2
+getTouchStrength	KEYWORD2
+getTouchArea	KEYWORD2
+softReset	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+IQS5XX_DEFAULT_ADDRESS	LITERAL1
+IQS5XX_REG_PRODUCT_NUMBER	LITERAL1
+IQS5XX_REG_VERSION_INFO	LITERAL1
+IQS5XX_REG_SYS_FLAGS	LITERAL1
+IQS5XX_REG_COORDINATES	LITERAL1
+IQS5XX_REG_TOUCH_STRENGTH	LITERAL1
+IQS5XX_REG_AREA	LITERAL1
+IQS5XX_SYS_FLAG_RESET	LITERAL1
+IQS5XX_SYS_FLAG_ATE_ERROR	LITERAL1
+IQS5XX_SYS_FLAG_REATI	LITERAL1
+IQS5XX_SYS_FLAG_ALP_ATI	LITERAL1
+IQS5XX_SYS_FLAG_LP_ATI	LITERAL1
+IQS5XX_SYS_FLAG_SNAP	LITERAL1
+IQS5XX_SYS_FLAG_SETUP	LITERAL1
+NO_TOUCH	LITERAL1
+SINGLE_TOUCH	LITERAL1
+MULTI_TOUCH	LITERAL1
