@@ -1,5 +1,11 @@
 # IQS5XX-B000 Trackpad Library
 
+
+
+https://github.com/user-attachments/assets/17cc72a4-d8b3-4ad5-9ea0-216d676c8c09
+
+
+
 An Arduino library for interfacing with the IQS5XX-B000 capacitive trackpad sensor from Azoteq. This library provides easy-to-use functions for touch detection, coordinate tracking, and gesture recognition over I2C communication.
 
 ## Features
