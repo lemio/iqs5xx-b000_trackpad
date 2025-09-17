@@ -1,7 +1,5 @@
 # IQS5XX-B000 Trackpad Library
 
-
-
 https://github.com/user-attachments/assets/17cc72a4-d8b3-4ad5-9ea0-216d676c8c09
 
 
@@ -86,13 +84,12 @@ void loop() {
   
   if (trackpad.readTouchData(touchData)) {
     if (touchData.state == SINGLE_TOUCH) {
-      Serial.print("Touch at X: ");
       Serial.print(touchData.x);
-      Serial.print(", Y: ");
+      Serial.print(",");
       Serial.print(touchData.y);
-      Serial.print(", Strength: ");
+      Serial.print(",");
       Serial.print(touchData.touchStrength);
-      Serial.print(", Area: ");
+      Serial.print(",");
       Serial.println(touchData.area);
     }
   }
@@ -100,6 +97,22 @@ void loop() {
   delay(50);
 }
 ```
+
+## Plotter
+
+To visualize touch data from the IQS5XX-B000 trackpad, you can use the built-in Plotter feature in the Arduino IDE. This allows you to see real-time graphs of touch coordinates and other parameters. Another option is to use web-based serial plotter specifically designed for touchpads in the web folder.
+
+If you have node installed:
+```
+npx http-server ./web
+```
+
+Or if you have python3 installed:
+```
+python3 -m http.server --directory ./web 8080
+```
+
+Then open your browser and navigate to `http://localhost:8080/plotter.html` (or the port shown in your terminal). Here you can connect to the Aruino's serial port using webserial and visualize the touch data.
 
 ## API Reference
 
@@ -167,7 +180,7 @@ The library includes example sketches:
 - Demonstrates proper I2C setup, device initialization, and continuous touch monitoring
 
 ### ESP32 Example Wiring
-```cpp
+```c++
 #define SDA_PIN 41        // I2C Data pin
 #define SCL_PIN 42        // I2C Clock pin  
 #define IQS550_RDY_PIN 39 // Ready signal pin
@@ -177,7 +190,7 @@ The library includes example sketches:
 
 ### Constructor Changes
 ⚠️ **Breaking Change**: The constructor now requires a `readyPin` parameter:
-```cpp
+```c++
 // Correct usage
 IQS5XX_B000_Trackpad trackpad(RDY_PIN);
 
