@@ -89,8 +89,6 @@ void loop() {
       Serial.print(touchData.y);
       Serial.print(",");
       Serial.print(touchData.touchStrength);
-      Serial.print(",");
-      Serial.println(touchData.area);
     }
   }
   
