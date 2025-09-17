@@ -20,13 +20,35 @@
 // Default I2C address for IQS5XX-B000
 #define IQS5XX_DEFAULT_ADDRESS 0x74
 
-// Register addresses (common for IQS5XX series)
-#define IQS5XX_REG_PRODUCT_NUMBER     0x00
+// Device Information Registers (0x00 - 0x0F)
+#define IQS5XX_REG_PRODUCT_NUMBER     0x00    // Product number
+#define IQS5XX_REG_SOFTWARE_NUMBER    0x02    // Software number
+#define IQS5XX_REG_MAJOR_VERSION      0x04    // Major version number
+#define IQS5XX_REG_MINOR_VERSION      0x05    // Minor version number
+#define IQS5XX_REG_BL_STATUS          0x06    // Bootloader status
+
+// System Information Registers (0x10 - 0x1F)
+#define IQS5XX_REG_SYSTEM_FLAGS       0x10    // System flags
+#define IQS5XX_REG_XY_INFO0           0x11    // Number of touches and palm rejection info
+#define IQS5XX_REG_REL_X              0x12    // Relative X coordinate
+#define IQS5XX_REG_REL_Y              0x14    // Relative Y coordinate
+#define IQS5XX_REG_TOUCH_X            0x16    // Absolute X coordinate
+#define IQS5XX_REG_TOUCH_Y            0x18    // Absolute Y coordinate
+#define IQS5XX_REG_TOUCH_STRENGTH     0x1A    // Touch strength
+#define IQS5XX_REG_AREA               0x1B    // Touch area
+
+// System Configuration Registers (0x430 - 0x43F)
+#define IQS5XX_REG_SYS_CNT0           0x0431  // System control 0
+#define IQS5XX_REG_SYS_CNT1           0x0432  // System control 1
+
+// System Configuration Registers (0x580 - 0x58F)
+#define IQS5XX_REG_SYS_CFG0           0x058E  // System configuration 0
+#define IQS5XX_REG_SYS_CFG1           0x058F  // System configuration 1
+
+// Legacy register aliases for backward compatibility
 #define IQS5XX_REG_VERSION_INFO       0x01
 #define IQS5XX_REG_SYS_FLAGS          0x10
 #define IQS5XX_REG_COORDINATES        0x11
-#define IQS5XX_REG_TOUCH_STRENGTH     0x12
-#define IQS5XX_REG_AREA               0x13
 
 // System flags bits
 #define IQS5XX_SYS_FLAG_RESET         0x80
@@ -63,7 +85,7 @@ class IQS5XX_B000_Trackpad {
      * @brief Constructor for IQS5XX_B000_Trackpad
      * @param address I2C address of the device (default: IQS5XX_DEFAULT_ADDRESS)
      */
-    IQS5XX_B000_Trackpad(uint8_t address = IQS5XX_DEFAULT_ADDRESS);
+    IQS5XX_B000_Trackpad(uint8_t readyPin, uint8_t address = IQS5XX_DEFAULT_ADDRESS);
     
     /**
      * @brief Initialize the trackpad
@@ -145,7 +167,26 @@ class IQS5XX_B000_Trackpad {
      */
     bool softReset();
     
+    /**
+     * @brief Perform proper wakeup sequence with NACK/ACK handling
+     * @return true if wakeup successful, false otherwise
+     */
+    bool wakeupDevice();
+    
+    /**
+     * @brief Enable manual control mode by setting bit 7 of System Config 0
+     * @return true if successful, false otherwise
+     */
+    bool enableManualControl();
+    
+    /**
+     * @brief Check if device is ready for data (RDY pin low)
+     * @return true if ready, false otherwise
+     */
+    bool isReadyForData();
+    
   private:
+    uint8_t _readyPin;
     uint8_t _address;
     TwoWire* _wire;
     TouchData _lastTouchData;
@@ -158,11 +199,25 @@ class IQS5XX_B000_Trackpad {
     uint8_t readRegister8(uint8_t reg);
     
     /**
+     * @brief Read 8-bit value from 16-bit register address
+     * @param reg 16-bit register address
+     * @return Register value, or 0 if read failed
+     */
+    uint8_t readRegister8_16bit(uint16_t reg);
+    
+    /**
      * @brief Read 16-bit value from register
      * @param reg Register address
      * @return Register value, or 0 if read failed
      */
     uint16_t readRegister16(uint8_t reg);
+    
+    /**
+     * @brief Read 16-bit value from 16-bit register address
+     * @param reg 16-bit register address
+     * @return Register value, or 0 if read failed
+     */
+    uint16_t readRegister16_16bit(uint16_t reg);
     
     /**
      * @brief Write 8-bit value to register
@@ -171,6 +226,14 @@ class IQS5XX_B000_Trackpad {
      * @return true if write successful, false otherwise
      */
     bool writeRegister8(uint8_t reg, uint8_t value);
+    
+    /**
+     * @brief Write 8-bit value to 16-bit register address
+     * @param reg 16-bit register address
+     * @param value Value to write
+     * @return true if write successful, false otherwise
+     */
+    bool writeRegister8_16bit(uint16_t reg, uint8_t value);
     
     /**
      * @brief Read multiple bytes from device

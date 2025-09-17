@@ -13,7 +13,9 @@
 
 #include "IQS5XX_B000_Trackpad.h"
 
-IQS5XX_B000_Trackpad::IQS5XX_B000_Trackpad(uint8_t address) {
+IQS5XX_B000_Trackpad::IQS5XX_B000_Trackpad(uint8_t readyPin, uint8_t address) {
+  _readyPin = readyPin;
+  pinMode(_readyPin, INPUT);
   _address = address;
   _wire = nullptr;
   _lastTouchData = {0, 0, 0, 0, NO_TOUCH};
@@ -23,21 +25,45 @@ bool IQS5XX_B000_Trackpad::begin(TwoWire &wire) {
   _wire = &wire;
   _wire->begin();
   
-  // Check if device is connected
-  if (!isConnected()) {
+  // Initial delay to allow device to stabilize
+  delay(10);
+  
+  // Check if device responds at expected address
+  _wire->beginTransmission(_address);
+  uint8_t error = _wire->endTransmission();
+  
+  if (error == 0) {
+    // Device found and already awake
+  } else if (error == 2) {
+    // Device found but needs wakeup - expect NACK initially
+    if (!wakeupDevice()) {
+      return false;
+    }
+  } else {
+    // No device found
     return false;
   }
   
-  // Perform initial setup if needed
-  delay(10); // Allow device to stabilize
-  
-  // Check if reset is needed
-  if (needsReset()) {
-    if (!softReset()) {
-      return false;
-    }
-    delay(100); // Wait for reset to complete
+  // Verify device by reading product number
+  uint16_t productNumber = getProductNumber();
+  if (productNumber == 0) {
+    return false;
   }
+  
+  // Check product ID (lower byte)
+  uint8_t productID = productNumber & 0xFF;
+  if (productID != 40 && productID != 58 && productID != 52) {
+    // Not a recognized IQS5XX device (40=IQS550, 58=IQS572, 52=IQS525)
+    return false;
+  }
+  
+  // Enable manual control mode
+  if (!enableManualControl()) {
+    return false;
+  }
+  
+  // Additional stabilization delay after configuration
+  delay(100);
   
   return true;
 }
@@ -52,7 +78,26 @@ bool IQS5XX_B000_Trackpad::isConnected() {
 }
 
 uint16_t IQS5XX_B000_Trackpad::getProductNumber() {
-  return readRegister16(IQS5XX_REG_PRODUCT_NUMBER);
+  if (_wire == nullptr) {
+    return 0;
+  }
+  
+  _wire->beginTransmission(_address);
+  _wire->write((IQS5XX_REG_PRODUCT_NUMBER >> 8) & 0xFF); // High byte of address
+  _wire->write(IQS5XX_REG_PRODUCT_NUMBER & 0xFF);        // Low byte of address
+  
+  if (_wire->endTransmission() != 0) {
+    return 0;
+  }
+  
+  if (_wire->requestFrom(_address, (uint8_t)2) != 2) {
+    return 0;
+  }
+  
+  uint8_t productHigh = _wire->read();
+  uint8_t productLow = _wire->read();
+  
+  return (productHigh << 8) | productLow;
 }
 
 uint16_t IQS5XX_B000_Trackpad::getVersionInfo() {
@@ -69,20 +114,30 @@ bool IQS5XX_B000_Trackpad::needsReset() {
 }
 
 bool IQS5XX_B000_Trackpad::readTouchData(TouchData &touchData) {
-  uint8_t buffer[8];
+  // Wait for RDY pin to be LOW (device ready)
+  while(digitalRead(_readyPin) == HIGH) { 
+    delay(1); // Small delay to prevent busy waiting
+  }
   
-  // Read coordinate and touch data starting from coordinates register
-  if (!readBytes(IQS5XX_REG_COORDINATES, buffer, 8)) {
+  // Read X coordinate (0x0016)
+  touchData.x = readRegister16_16bit(IQS5XX_REG_TOUCH_X);
+  if (touchData.x == 0) {
+    touchData.state = NO_TOUCH;
     return false;
   }
   
-  // Parse coordinate data (assuming little-endian format)
-  touchData.x = (buffer[1] << 8) | buffer[0];
-  touchData.y = (buffer[3] << 8) | buffer[2];
+  // Read Y coordinate (0x0018)  
+  touchData.y = readRegister16_16bit(IQS5XX_REG_TOUCH_Y);
+  if (touchData.y == 0) {
+    touchData.state = NO_TOUCH;
+    return false;
+  }
   
-  // Read touch strength and area
-  touchData.touchStrength = buffer[4];
-  touchData.area = buffer[6];
+  // Read touch strength (0x001A)
+  touchData.touchStrength = readRegister8_16bit(IQS5XX_REG_TOUCH_STRENGTH);
+  
+  // Read touch area (0x001B)
+  touchData.area = readRegister8_16bit(IQS5XX_REG_AREA);
   
   // Determine touch state based on coordinates and strength
   if (touchData.touchStrength == 0) {
@@ -145,6 +200,44 @@ bool IQS5XX_B000_Trackpad::softReset() {
   return writeRegister8(IQS5XX_REG_SYS_FLAGS, IQS5XX_SYS_FLAG_RESET);
 }
 
+bool IQS5XX_B000_Trackpad::wakeupDevice() {
+  if (_wire == nullptr) {
+    return false;
+  }
+  
+  // First attempt - expect NACK (device is sleeping)
+  _wire->beginTransmission(_address);
+  uint8_t result1 = _wire->endTransmission();
+  
+  // Wait at least 150µs as required by datasheet
+  delayMicroseconds(200); // 200µs to be safe
+  
+  // Second attempt - should get ACK if wakeup was successful
+  _wire->beginTransmission(_address);
+  uint8_t result2 = _wire->endTransmission();
+  
+  return (result2 == 0);
+}
+
+bool IQS5XX_B000_Trackpad::enableManualControl() {
+  if (_wire == nullptr) {
+    return false;
+  }
+  
+  // Read current System Configuration 0 register (0x058E)
+  uint8_t sysConf0 = readRegister8_16bit(IQS5XX_REG_SYS_CFG0);
+  
+  // Set bit 7 to 1 to enable manual control
+  sysConf0 |= 0b10000000;
+  
+  // Write back the modified value
+  return writeRegister8_16bit(IQS5XX_REG_SYS_CFG0, sysConf0);
+}
+
+bool IQS5XX_B000_Trackpad::isReadyForData() {
+  return digitalRead(_readyPin) == LOW;
+}
+
 uint8_t IQS5XX_B000_Trackpad::readRegister8(uint8_t reg) {
   if (_wire == nullptr) {
     return 0;
@@ -152,6 +245,26 @@ uint8_t IQS5XX_B000_Trackpad::readRegister8(uint8_t reg) {
   
   _wire->beginTransmission(_address);
   _wire->write(reg);
+  
+  if (_wire->endTransmission() != 0) {
+    return 0;
+  }
+  
+  if (_wire->requestFrom(_address, (uint8_t)1) != 1) {
+    return 0;
+  }
+  
+  return _wire->read();
+}
+
+uint8_t IQS5XX_B000_Trackpad::readRegister8_16bit(uint16_t reg) {
+  if (_wire == nullptr) {
+    return 0;
+  }
+  
+  _wire->beginTransmission(_address);
+  _wire->write((reg >> 8) & 0xFF); // High byte of address
+  _wire->write(reg & 0xFF);        // Low byte of address
   
   if (_wire->endTransmission() != 0) {
     return 0;
@@ -174,6 +287,29 @@ uint16_t IQS5XX_B000_Trackpad::readRegister16(uint8_t reg) {
   return (buffer[1] << 8) | buffer[0];
 }
 
+uint16_t IQS5XX_B000_Trackpad::readRegister16_16bit(uint16_t reg) {
+  if (_wire == nullptr) {
+    return 0;
+  }
+  
+  _wire->beginTransmission(_address);
+  _wire->write((reg >> 8) & 0xFF); // High byte of address
+  _wire->write(reg & 0xFF);        // Low byte of address
+  
+  if (_wire->endTransmission() != 0) {
+    return 0;
+  }
+  
+  if (_wire->requestFrom(_address, (uint8_t)2) != 2) {
+    return 0;
+  }
+  
+  uint8_t high = _wire->read();
+  uint8_t low = _wire->read();
+  
+  return (high << 8) | low;
+}
+
 bool IQS5XX_B000_Trackpad::writeRegister8(uint8_t reg, uint8_t value) {
   if (_wire == nullptr) {
     return false;
@@ -181,6 +317,19 @@ bool IQS5XX_B000_Trackpad::writeRegister8(uint8_t reg, uint8_t value) {
   
   _wire->beginTransmission(_address);
   _wire->write(reg);
+  _wire->write(value);
+  
+  return (_wire->endTransmission() == 0);
+}
+
+bool IQS5XX_B000_Trackpad::writeRegister8_16bit(uint16_t reg, uint8_t value) {
+  if (_wire == nullptr) {
+    return false;
+  }
+  
+  _wire->beginTransmission(_address);
+  _wire->write((reg >> 8) & 0xFF); // High byte of address
+  _wire->write(reg & 0xFF);        // Low byte of address
   _wire->write(value);
   
   return (_wire->endTransmission() == 0);
