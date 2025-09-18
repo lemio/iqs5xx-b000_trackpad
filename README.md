@@ -56,14 +56,17 @@ An Arduino library for interfacing with the IQS5XX-B000 capacitive trackpad sens
 #include <Wire.h>
 #include <IQS5XX_B000_Trackpad.h>
 
-#define RDY_PIN 2  // Connect RDY pin to digital pin 2
+#define SDA_PIN 41        // I2C Data pin (ESP32)
+#define SCL_PIN 42        // I2C Clock pin (ESP32)
+#define RDY_PIN 39        // Ready signal pin (required)
 
 IQS5XX_B000_Trackpad trackpad(RDY_PIN);  // RDY pin is required
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
+  Wire.begin(SDA_PIN, SCL_PIN);  // ESP32 custom I2C pins
   
-  if (trackpad.begin()) {
+  if (trackpad.begin(Wire)) {
     Serial.println("Trackpad initialized!");
     
     // Enable manual control mode for continuous updates
@@ -71,9 +74,14 @@ void setup() {
       Serial.println("Manual control enabled!");
     }
     
+    // Optional: Increase communication speed
+    trackpad.increaseSpeed();
+    
     // Display device info
     Serial.print("Product Number: 0x");
     Serial.println(trackpad.getProductNumber(), HEX);
+    Serial.print("Version Info: 0x");
+    Serial.println(trackpad.getVersionInfo(), HEX);
   } else {
     Serial.println("Trackpad initialization failed!");
   }
@@ -83,40 +91,66 @@ void loop() {
   TouchData touchData;
   
   if (trackpad.readTouchData(touchData)) {
-    if (touchData.state == SINGLE_TOUCH) {
-      Serial.print(touchData.x);
-      Serial.print(",");
-      Serial.print(touchData.y);
-      Serial.print(",");
-      Serial.print(touchData.touchStrength);
-    }
+    // Output in CSV format for web plotter compatibility
+    Serial.print(touchData.x);
+    Serial.print(",");
+    Serial.print(touchData.y);
+    Serial.print(",");
+    Serial.print(touchData.touchStrength);
   }
   
-  delay(50);
+  delay(50);  // ~20fps update rate
 }
 ```
 
-## Plotter
+## Data Visualization & Plotter
 
-To visualize touch data from the IQS5XX-B000 trackpad, you can use the built-in Plotter feature in the Arduino IDE. This allows you to see real-time graphs of touch coordinates and other parameters. Another option is to use web-based serial plotter specifically designed for touchpads in the web folder.
+The library includes multiple ways to visualize touch data:
 
-If you have node installed:
+### Arduino IDE Serial Plotter
+Use the built-in Arduino IDE Serial Plotter (Tools → Serial Plotter) to see real-time graphs. The BasicTouchDetectionESP32 example outputs CSV format that works directly with the serial plotter.
+
+### Web-Based Touch Plotter
+For advanced visualization, use the included web-based plotter with these features:
+- Real-time touch position visualization with trail effects
+- Touch strength indication through point size
+- Touch area measurement display
+- Interactive touch history with fade effects
+- Compatible with WebSerial for direct browser connection to your device
+
+To use the web plotter:
 ```
 npx http-server ./web
 ```
 
-Or if you have python3 installed:
+#### Version 1.0.0 (Current)
+- ✅ Complete rewrite with proper IQS5XX register mapping
+- ✅ **Breaking Change**: Constructor now requires `readyPin` parameter
+- ✅ Added manual control mode support (10fps continuous updates)
+- ✅ Implemented proper sleep/wake handling with NACK/ACK sequence
+- ✅ Added device compatibility checking for IQS550/IQS525/IQS572
+- ✅ Enhanced error handling and status checking
+- ✅ Added comprehensive ESP32 example with CSV output format
+- ✅ Improved I2C communication with 16-bit register addressing
+- ✅ Added `wakeupDevice()`, `enableManualControl()`, `isReadyForData()` methods
+- ✅ Added `increaseSpeed()` method for optimized communication timing
+- ✅ Included web-based touch plotter with WebSerial integration
+- ✅ Complete API implementation for single touch detection
+- ✅ Full touch strength and area measurement support
 ```
 python3 -m http.server --directory ./web 8080
 ```
 
-Then open your browser and navigate to `http://localhost:8080/plotter.html` (or the port shown in your terminal). Here you can connect to the Aruino's serial port using webserial and visualize the touch data.
+Then open your browser and navigate to `http://localhost:8080/plotter.html` (or the port shown in your terminal). 
 
-## API Reference
+### Web Plotter Features:
+- **Real-time Visualization**: Live touch point display with smooth trails
+- **WebSerial Integration**: Connect directly to your Arduino's serial port from the browser
+- **Touch Metrics**: Displays X/Y coordinates, touch strength, and area values
+- **Interactive Controls**: Toggle trail display, adjust visualization settings
+- **Responsive Design**: Works on desktop and mobile browsers
 
-### Constructor
-
-**Important:** The constructor requires a ready pin parameter for proper operation.
+The web plotter expects CSV data in the format: `X,Y,Strength,Area` which is exactly what the BasicTouchDetectionESP32 example outputs.
 ```c++
 IQS5XX_B000_Trackpad trackpad(readyPin, address);
 // Parameters:
@@ -130,6 +164,7 @@ uint16_t getProductNumber();                // Get product ID
 uint16_t getVersionInfo();                  // Get firmware version
 bool wakeupDevice();                        // Wake device from sleep
 bool enableManualControl();                 // Enable manual control mode
+bool increaseSpeed();                       // Optimize I2C timing for faster updates
 bool isReadyForData();                      // Check if ready pin is LOW
 ```
 
@@ -148,6 +183,7 @@ uint8_t getTouchArea();                     // Get touch area
 uint8_t getSystemFlags();                   // Read system status
 bool needsReset();                          // Check if reset needed
 bool softReset();                           // Perform soft reset
+bool increaseSpeed();                       // Increase communication speed
 ```
 
 ### Data Structures
@@ -172,22 +208,33 @@ struct TouchData {
 
 ## Examples
 
-The library includes example sketches:
+The library includes example sketches in the `examples/` folder:
 
 - **BasicTouchDetectionESP32**: Complete example for ESP32 with touch detection and coordinate reading
-- Demonstrates proper I2C setup, device initialization, and continuous touch monitoring
+  - Demonstrates proper I2C setup with custom SDA/SCL pins
+  - Device initialization with error handling
+  - Manual control mode enabling for 10fps updates
+  - Continuous touch monitoring with all touch parameters (X, Y, strength, area)
+  - Serial output in CSV format compatible with the web plotter
 
 ### ESP32 Example Wiring
 ```c++
 #define SDA_PIN 41        // I2C Data pin
 #define SCL_PIN 42        // I2C Clock pin  
 #define IQS550_RDY_PIN 39 // Ready signal pin
+#define IQS550_RST_PIN 40 // Reset pin (available but not used in basic example)
 ```
 
-## Important Notes
+### Example Output Format
 
-### Constructor Changes
-⚠️ **Breaking Change**: The constructor now requires a `readyPin` parameter:
+The BasicTouchDetectionESP32 example outputs data in CSV format for easy integration with the web plotter:
+
+```
+Format: X,Y,Strength,Area
+Example: 512,300,25,15
+```
+
+This format allows direct visualization using the included web-based plotter at `web/plotter.html`.
 ```c++
 // Correct usage
 IQS5XX_B000_Trackpad trackpad(RDY_PIN);
@@ -202,142 +249,47 @@ The library supports manual control mode which provides:
 - Higher power consumption but faster response
 - Enable with `trackpad.enableManualControl()` after initialization
 
+### Speed Optimization
+For even faster communication, use the `increaseSpeed()` function:
+- Reduces I2C timeout to 5ms (RDY pin LOW duration)
+- Increases report rate to 5ms intervals
+- Call after enabling manual control mode for best performance
+
 ### Device Compatibility  
 Supports IQS5XX family devices with product IDs:
 - 40 (IQS550)
 - 52 (IQS525) 
 - 58 (IQS572)
-
-### Sleep/Wake Behavior
-- Device may initially respond with NACK (address not acknowledged) when sleeping
-- Library automatically handles wakeup sequence with proper timing (150µs minimum)
-- Manual control mode prevents automatic sleep for faster response
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"Trackpad initialization failed!" message**
-   - **Missing RDY pin**: Ensure RDY pin is connected and specified in constructor
-   - Check I2C wiring (SDA/SCL connections)
-   - Verify power supply (3.3V recommended for ESP32)
-   - Ensure pull-up resistors are present on I2C lines (4.7kΩ)
-   - Try different I2C pins if using ESP32
-
-2. **Device not detected during I2C scan**
-   - Device may be sleeping (normal behavior)
-   - Check for proper grounding
-   - Verify I2C address (default: 0x74)
-   - Test with I2C scanner that handles NACK responses
-
-3. **Erratic or no touch readings**
-   - Call `trackpad.enableManualControl()` after initialization
-   - Check if device needs reset using `needsReset()`
-   - Verify RDY pin is properly connected and functioning
-   - Ensure stable power supply with adequate current capacity
-   - Add decoupling capacitors (0.1µF, 10µF) near the sensor
-
-4. **"Manual control mode failed" message**
-   - Device may not be properly initialized
-   - Try calling `wakeupDevice()` before enabling manual control
-   - Check I2C communication is stable
-
-### I2C Scanner
 ```c++
-#include <Wire.h>
-
-void setup() {
-  Wire.begin();
-  Serial.begin(9600);
-  Serial.println("I2C Scanner for IQS5XX");
-  Serial.println("Default address should be 0x74");
-}
-
-void loop() {
-  byte error, address;
-  int nDevices;
-  
-  Serial.println("Scanning...");
-  nDevices = 0;
-  
-  for(address = 1; address < 127; address++) {
-    Wire.beginTransmission(address);
-    error = Wire.endTransmission();
-    
-    if (error == 0) {
-      Serial.print("I2C device found at address 0x");
-      if (address<16) Serial.print("0");
-      Serial.print(address,HEX);
-      if (address == 0x74) {
-        Serial.print(" (IQS5XX default)");
-      }
-      Serial.println();
-      nDevices++;
-    }
-    else if (error == 2) {
-      // Device may be sleeping - this is normal for IQS5XX
-      Serial.print("Device found but not responding at 0x");
-      if (address<16) Serial.print("0");
-      Serial.print(address,HEX);
-      Serial.println(" (may be sleeping)");
-    }
-  }
-  
-  if (nDevices == 0) {
-    Serial.println("No I2C devices found");
-    Serial.println("Check wiring and ensure RDY pin is connected");
-  }
-  Serial.println();
-  
-  delay(5000);
-}
+### Development Status
+- Core touch detection: **Complete** ✅
+- Single touch tracking: **Complete** ✅  
+- Touch strength & area measurement: **Complete** ✅
+- Device initialization & wakeup: **Complete** ✅
+- Manual control mode: **Complete** ✅
+- Speed optimization: **Complete** ✅
+- ESP32 example with web plotter: **Complete** ✅
+- Multi-touch support: **Planned** 🔄
+- Gesture recognition: **Planned** 🔄
+- Advanced configuration options: **Planned** 🔄
 ```
-
-## Version Information
-
-**Current Version: 1.0.0**
-
-### Changelog
-
-#### Version 1.0.0
-- ✅ Complete rewrite with proper IQS5XX register mapping
-- ✅ **Breaking Change**: Constructor now requires `readyPin` parameter
-- ✅ Added manual control mode support
-- ✅ Implemented proper sleep/wake handling with NACK/ACK sequence
-- ✅ Added device compatibility checking for IQS550/IQS525/IQS572
-- ✅ Enhanced error handling and status checking
-- ✅ Added comprehensive ESP32 example
-- ✅ Improved I2C communication with 16-bit register addressing
-- ✅ Added `wakeupDevice()`, `enableManualControl()`, `isReadyForData()` methods
 
 ### API Status
 
 | Function | Status | Notes |
 |----------|--------|-------|
 | `begin()` | ✅ Complete | Auto-detects device, handles wakeup |
+| `isConnected()` | ✅ Complete | Checks device availability |
 | `readTouchData()` | ✅ Complete | Waits for RDY pin, reads all touch data |
 | `getTouchX/Y()` | ✅ Complete | Individual coordinate access |
 | `getTouchStrength/Area()` | ✅ Complete | Touch quality metrics |
+| `getTouchState()` | ✅ Complete | Returns TouchState enum |
 | `getProductNumber()` | ✅ Complete | Device identification |
+| `getVersionInfo()` | ✅ Complete | Firmware version reading |
+| `getSystemFlags()` | ✅ Complete | System status monitoring |
+| `needsReset()` | ✅ Complete | Reset condition detection |
 | `enableManualControl()` | ✅ Complete | 10fps continuous mode |
-| `wakeupDevice()` | ✅ Complete | Proper 150µs timing |
-| `softReset()` | ⚠️ Basic | Placeholder implementation |
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests.
-
-### Development Status
-- Core touch detection: **Complete** ✅
-- Multi-touch support: **Planned** 🔄
-- Gesture recognition: **Planned** 🔄
-- Advanced configuration: **Planned** 🔄
-
-## License
-
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Azoteq for the IQS5XX-B000 trackpad sensor and documentation
-- Arduino community for the development environment and libraries
+| `wakeupDevice()` | ✅ Complete | Proper 150µs timing with NACK/ACK |
+| `isReadyForData()` | ✅ Complete | RDY pin status check |
+| `increaseSpeed()` | ✅ Complete | Optimizes I2C timing for faster updates |
+| `softReset()` | ⚠️ Basic | Basic implementation, may need enhancement |
