@@ -403,13 +403,13 @@ bool IQS5XX_B000_Trackpad::readBytes(uint8_t reg, uint8_t* buffer, uint8_t lengt
 bool IQS5XX_B000_Trackpad::increaseSpeed() {
   //Set the I2C timeout (0x058A) to a lower value (e.g., 5ms)
   //This means that the RDY pin is only LOW for 5 ms
-  if (!trackpad.writeRegister8_16bit(IQS5XX_REG_I2C_TIMEOUT, 5)){
+  if (!writeRegister8_16bit(IQS5XX_REG_I2C_TIMEOUT, 5)){
     return false;
   }
   // Set the Active Report Rate (0x057A) to a higher value (e.g., 5ms)
   // This means that the device will attempt to report data every 5 ms
   // instead of the default 100 ms
-  if (!trackpad.writeRegister16(IQS5XX_REG_ACTIVE_REPORT_RATE, 5)) {
+  if (!writeRegister16(IQS5XX_REG_ACTIVE_REPORT_RATE, 5)) {
     return false;
   }
   return true;
