@@ -11,12 +11,15 @@ An Arduino library for interfacing with the IQS5XX-B000 capacitive trackpad sens
 - ✅ I2C communication with IQS5XX-B000 trackpad
 - ✅ Touch detection and coordinate tracking
 - ✅ Touch strength and area measurement
+- ✅ Gesture recognition (tap, swipe, two-finger tap, scroll, zoom, press & hold)
+- ✅ Multi-touch detection and finger count
 - ✅ System status monitoring and error handling
 - ✅ Device initialization and reset functionality
 - ✅ Manual control mode for continuous updates
 - ✅ Device wakeup from sleep mode
 - ✅ Compatible with Arduino, ESP32, and other Arduino-compatible boards
 - ✅ Support for multiple IQS5XX variants (IQS550, IQS525, IQS572)
+- ✅ Web-based real-time touch visualization plotter
 
 ## Hardware Requirements
 
@@ -123,9 +126,11 @@ To use the web plotter:
 npx http-server ./web
 ```
 
-#### Version 1.0.0 (Current)
-- ✅ Complete rewrite with proper IQS5XX register mapping
+#### Version 1.0.2 (Current)
 - ✅ **Breaking Change**: Constructor now requires `readyPin` parameter
+- ✅ Complete rewrite with proper IQS5XX register mapping
+- ✅ Added gesture recognition support (swipe, tap, two-finger tap, scroll, zoom, press & hold)
+- ✅ Enhanced TouchData structure with gesture flags and finger count
 - ✅ Added manual control mode support (10fps continuous updates)
 - ✅ Implemented proper sleep/wake handling with NACK/ACK sequence
 - ✅ Added device compatibility checking for IQS550/IQS525/IQS572
@@ -135,8 +140,9 @@ npx http-server ./web
 - ✅ Added `wakeupDevice()`, `enableManualControl()`, `isReadyForData()` methods
 - ✅ Added `increaseSpeed()` method for optimized communication timing
 - ✅ Included web-based touch plotter with WebSerial integration
-- ✅ Complete API implementation for single touch detection
+- ✅ Complete API implementation for single and multi-touch detection
 - ✅ Full touch strength and area measurement support
+- ✅ Multi-touch finger counting and state detection
 ```
 python3 -m http.server --directory ./web 8080
 ```
@@ -170,12 +176,19 @@ bool isReadyForData();                      // Check if ready pin is LOW
 
 ### Touch Detection
 ```c++
-bool readTouchData(TouchData &touchData);   // Read complete touch data
-TouchState getTouchState();                 // Get current touch state
+```cpp
+bool readTouchData(TouchData &touchData);   // Read complete touch data including gestures
+TouchState getTouchState();                 // Get current touch state (NO_TOUCH/SINGLE_TOUCH/MULTI_TOUCH)
 uint16_t getTouchX();                       // Get X coordinate
 uint16_t getTouchY();                       // Get Y coordinate
 uint8_t getTouchStrength();                 // Get touch strength
 uint8_t getTouchArea();                     // Get touch area
+
+// Note: readTouchData() populates the complete TouchData structure including:
+// - Basic coordinates and measurements (x, y, touchStrength, area)
+// - Multi-touch information (numFingers, state)
+// - Gesture flags (singleTap, twoFingerTap, swipes, scroll, zoom, pressAndHold)
+```
 ```
 
 ### System Management
@@ -188,6 +201,7 @@ bool increaseSpeed();                       // Increase communication speed
 
 ### Data Structures
 ```c++
+```cpp
 enum TouchState {
   NO_TOUCH = 0,
   SINGLE_TOUCH = 1,
@@ -199,23 +213,40 @@ struct TouchData {
   uint16_t y;              // Y coordinate (device-dependent range)  
   uint8_t touchStrength;   // Touch strength value
   uint8_t area;            // Touch area value
+  uint8_t numFingers;      // Number of fingers detected
   TouchState state;        // Current touch state
+  
+  // Gesture flags (GESTURE_EVENTS_0)
+  bool swipeY_minus;       // Swipe down gesture
+  bool swipeY_plus;        // Swipe up gesture  
+  bool swipeX_plus;        // Swipe right gesture
+  bool swipeX_minus;       // Swipe left gesture
+  bool pressAndHold;       // Press and hold gesture
+  bool singleTap;          // Single tap gesture
+  
+  // Gesture flags (GESTURE_EVENTS_1)
+  bool zoom;               // Zoom gesture (pinch/spread)
+  bool scroll;             // Scroll gesture
+  bool twoFingerTap;       // Two finger tap gesture
 };
 
 // Note: Coordinate ranges depend on the specific IQS5XX device variant
 // Common ranges: 0-1023 for some variants, 0-65535 for others
 ```
+```
 
 ## Examples
 
-The library includes example sketches in the `examples/` folder:
+The library includes comprehensive example sketches in the `examples/` folder:
 
-- **BasicTouchDetectionESP32**: Complete example for ESP32 with touch detection and coordinate reading
-  - Demonstrates proper I2C setup with custom SDA/SCL pins
-  - Device initialization with error handling
-  - Manual control mode enabling for 10fps updates
-  - Continuous touch monitoring with all touch parameters (X, Y, strength, area)
+- **BasicTouchDetectionESP32**: Complete example for ESP32 with touch detection, coordinate reading, and gesture recognition
+  - Demonstrates proper I2C setup with custom SDA/SCL pins (GPIO41/GPIO42)
+  - Device initialization with error handling and device information display
+  - Manual control mode enabling for 10fps continuous updates
+  - Continuous touch monitoring with all touch parameters (X, Y, strength, area, gestures)
   - Serial output in CSV format compatible with the web plotter
+  - Support for gesture detection (swipes, taps, scroll, zoom, press & hold)
+  - Multi-touch finger counting and state detection
 
 ### ESP32 Example Wiring
 ```c++
@@ -233,6 +264,15 @@ The BasicTouchDetectionESP32 example outputs data in CSV format for easy integra
 Format: X,Y,Strength,Area
 Example: 512,300,25,15
 ```
+
+The TouchData structure also provides access to additional gesture and multi-touch information:
+- `touchData.numFingers` - Number of detected fingers
+- `touchData.state` - TouchState enum (NO_TOUCH, SINGLE_TOUCH, MULTI_TOUCH)  
+- `touchData.singleTap`, `touchData.twoFingerTap` - Tap gesture detection
+- `touchData.swipeX_plus`, `touchData.swipeX_minus` - Horizontal swipe gestures
+- `touchData.swipeY_plus`, `touchData.swipeY_minus` - Vertical swipe gestures
+- `touchData.scroll`, `touchData.zoom` - Advanced multi-touch gestures
+- `touchData.pressAndHold` - Press and hold gesture detection
 
 This format allows direct visualization using the included web-based plotter at `web/plotter.html`.
 ```c++
@@ -255,23 +295,34 @@ For even faster communication, use the `increaseSpeed()` function:
 - Increases report rate to 5ms intervals
 - Call after enabling manual control mode for best performance
 
+### Gesture Recognition
+The library provides comprehensive gesture support through the TouchData structure:
+- **Basic gestures**: Single tap, two-finger tap, press and hold
+- **Swipe gestures**: Four-directional swipe detection (up, down, left, right)
+- **Advanced gestures**: Scroll and zoom (pinch/spread) detection
+- **Multi-touch support**: Finger counting and multi-touch state detection
+
 ### Device Compatibility  
 Supports IQS5XX family devices with product IDs:
 - 40 (IQS550)
 - 52 (IQS525) 
 - 58 (IQS572)
 ```c++
+```cpp
 ### Development Status
 - Core touch detection: **Complete** ✅
 - Single touch tracking: **Complete** ✅  
+- Multi-touch detection: **Complete** ✅
 - Touch strength & area measurement: **Complete** ✅
 - Device initialization & wakeup: **Complete** ✅
 - Manual control mode: **Complete** ✅
 - Speed optimization: **Complete** ✅
+- Gesture recognition: **Complete** ✅
+- Multi-touch finger counting: **Complete** ✅
 - ESP32 example with web plotter: **Complete** ✅
-- Multi-touch support: **Planned** 🔄
-- Gesture recognition: **Planned** 🔄
 - Advanced configuration options: **Planned** 🔄
+- Custom gesture configuration: **Planned** 🔄
+```
 ```
 
 ### API Status
@@ -280,10 +331,10 @@ Supports IQS5XX family devices with product IDs:
 |----------|--------|-------|
 | `begin()` | ✅ Complete | Auto-detects device, handles wakeup |
 | `isConnected()` | ✅ Complete | Checks device availability |
-| `readTouchData()` | ✅ Complete | Waits for RDY pin, reads all touch data |
+| `readTouchData()` | ✅ Complete | Waits for RDY pin, reads all touch data including gestures |
 | `getTouchX/Y()` | ✅ Complete | Individual coordinate access |
 | `getTouchStrength/Area()` | ✅ Complete | Touch quality metrics |
-| `getTouchState()` | ✅ Complete | Returns TouchState enum |
+| `getTouchState()` | ✅ Complete | Returns TouchState enum (NO_TOUCH/SINGLE_TOUCH/MULTI_TOUCH) |
 | `getProductNumber()` | ✅ Complete | Device identification |
 | `getVersionInfo()` | ✅ Complete | Firmware version reading |
 | `getSystemFlags()` | ✅ Complete | System status monitoring |
@@ -292,4 +343,7 @@ Supports IQS5XX family devices with product IDs:
 | `wakeupDevice()` | ✅ Complete | Proper 150µs timing with NACK/ACK |
 | `isReadyForData()` | ✅ Complete | RDY pin status check |
 | `increaseSpeed()` | ✅ Complete | Optimizes I2C timing for faster updates |
-| `softReset()` | ⚠️ Basic | Basic implementation, may need enhancement |
+| `softReset()` | ✅ Complete | Software reset implementation |
+| **Gesture Recognition** | ✅ Complete | All gestures supported via TouchData structure |
+| **Multi-touch Detection** | ✅ Complete | Finger counting and multi-touch state |
+| **Advanced Gestures** | ✅ Complete | Swipe, tap, scroll, zoom, press & hold |
