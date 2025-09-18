@@ -17,6 +17,9 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+//Datasheet https://www.azoteq.com/images/stories/pdf/iqs5xx-b000_trackpad_datasheet.pdf#page=31
+
+
 // Default I2C address for IQS5XX-B000
 #define IQS5XX_DEFAULT_ADDRESS 0x74
 
@@ -36,6 +39,9 @@
 #define IQS5XX_REG_TOUCH_Y            0x18    // Absolute Y coordinate
 #define IQS5XX_REG_TOUCH_STRENGTH     0x1A    // Touch strength
 #define IQS5XX_REG_AREA               0x1B    // Touch area
+
+#define IQS5XX_REG_ACTIVE_REPORT_RATE 0x057A  // Active report rate
+#define IQS5XX_REG_I2C_TIMEOUT        0x058A  // I2C timeout
 
 // System Configuration Registers (0x430 - 0x43F)
 #define IQS5XX_REG_SYS_CNT0           0x0431  // System control 0
@@ -184,7 +190,37 @@ class IQS5XX_B000_Trackpad {
      * @return true if ready, false otherwise
      */
     bool isReadyForData();
+
+    /**
+     * @brief Increase communication speed by reducing the I2C timeout and increasing the report rate
+     * @return true if successful, false otherwise
+     */
+    bool increaseSpeed();
+
+    /**
+     * @brief Write 16-bit value to 16-bit register address
+     * @param reg 16-bit register address
+     * @param value Value to write
+     * @return true if write successful, false otherwise
+     */
+    bool writeRegister16(uint16_t reg, uint16_t value);
     
+    /**
+     * @brief Write 8-bit value to register
+     * @param reg Register address
+     * @param value Value to write
+     * @return true if write successful, false otherwise
+     */
+    bool writeRegister8(uint8_t reg, uint8_t value);
+
+    /**
+     * @brief Write 8-bit value to 16-bit register address
+     * @param reg 16-bit register address
+     * @param value Value to write
+     * @return true if write successful, false otherwise
+     */
+    bool writeRegister8_16bit(uint16_t reg, uint8_t value);
+
   private:
     uint8_t _readyPin;
     uint8_t _address;
@@ -218,22 +254,6 @@ class IQS5XX_B000_Trackpad {
      * @return Register value, or 0 if read failed
      */
     uint16_t readRegister16_16bit(uint16_t reg);
-    
-    /**
-     * @brief Write 8-bit value to register
-     * @param reg Register address
-     * @param value Value to write
-     * @return true if write successful, false otherwise
-     */
-    bool writeRegister8(uint8_t reg, uint8_t value);
-    
-    /**
-     * @brief Write 8-bit value to 16-bit register address
-     * @param reg 16-bit register address
-     * @param value Value to write
-     * @return true if write successful, false otherwise
-     */
-    bool writeRegister8_16bit(uint16_t reg, uint8_t value);
     
     /**
      * @brief Read multiple bytes from device
