@@ -26,7 +26,7 @@ bool IQS5XX_B000_Trackpad::begin(TwoWire &wire) {
   _wire->begin();
   
   // Initial delay to allow device to stabilize
-  delay(10);
+  delay(1);
   
   // Check if device responds at expected address
   _wire->beginTransmission(_address);
@@ -63,7 +63,7 @@ bool IQS5XX_B000_Trackpad::begin(TwoWire &wire) {
   }
   
   // Additional stabilization delay after configuration
-  delay(100);
+  delay(1);
   
   return true;
 }
@@ -116,7 +116,7 @@ bool IQS5XX_B000_Trackpad::needsReset() {
 bool IQS5XX_B000_Trackpad::readTouchData(TouchData &touchData) {
   // Wait for RDY pin to be LOW (device ready)
   while(digitalRead(_readyPin) == HIGH) { 
-    delay(1); // Small delay to prevent busy waiting
+    delayMicroseconds(10); // Small delay to prevent busy waiting
   }
   
   // Read X coordinate (0x0016)
@@ -334,6 +334,19 @@ bool IQS5XX_B000_Trackpad::writeRegister8_16bit(uint16_t reg, uint8_t value) {
   
   return (_wire->endTransmission() == 0);
 }
+bool IQS5XX_B000_Trackpad::writeRegister16(uint16_t reg, uint16_t value) {
+  if (_wire == nullptr) {
+    return false;
+  }
+
+  _wire->beginTransmission(_address);
+  _wire->write((reg >> 8) & 0xFF); // High byte of address
+  _wire->write(reg & 0xFF);        // Low byte of address
+  _wire->write((value >> 8) & 0xFF); // High byte of value
+  _wire->write(value & 0xFF);        // Low byte of value
+
+  return (_wire->endTransmission() == 0);
+}
 
 bool IQS5XX_B000_Trackpad::readBytes(uint8_t reg, uint8_t* buffer, uint8_t length) {
   if (_wire == nullptr || buffer == nullptr || length == 0) {
@@ -355,5 +368,20 @@ bool IQS5XX_B000_Trackpad::readBytes(uint8_t reg, uint8_t* buffer, uint8_t lengt
     buffer[i] = _wire->read();
   }
   
+  return true;
+}
+
+bool IQS5XX_B000_Trackpad::increaseSpeed() {
+  //Set the I2C timeout (0x058A) to a lower value (e.g., 5ms)
+  //This means that the RDY pin is only LOW for 5 ms
+  if (!trackpad.writeRegister8_16bit(IQS5XX_REG_I2C_TIMEOUT, 5)){
+    return false;
+  }
+  // Set the Active Report Rate (0x057A) to a higher value (e.g., 5ms)
+  // This means that the device will attempt to report data every 5 ms
+  // instead of the default 100 ms
+  if (!trackpad.writeRegister16(IQS5XX_REG_ACTIVE_REPORT_RATE, 5)) {
+    return false;
+  }
   return true;
 }
