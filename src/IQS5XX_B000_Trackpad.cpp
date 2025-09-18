@@ -133,6 +133,32 @@ bool IQS5XX_B000_Trackpad::readTouchData(TouchData &touchData) {
     return false;
   }
   
+
+  // Read gesture events 
+
+  /* 
+  bool swipeY_minus; //bit 5 GESTURE_EVENTS_0
+  bool swipeY_plus;  //bit 4 GESTURE_EVENTS_0
+  bool swipeX_plus;  //bit 3 GESTURE_EVENTS_0
+  bool swipeX_minus; //bit 2 GESTURE_EVENTS_0
+  bool pressAndHold; //bit 1 GESTURE_EVENTS_0
+  bool singleTap;    //bit 0 GESTURE_EVENTS_0
+  bool zoom;         //bit 2 GESTURE_EVENTS_1
+  bool scroll;       //bit 1 GESTURE_EVENTS_1
+  bool twoFingerTap; //bit 0 GESTURE_EVENTS_1
+  */
+  uint8_t gesture0 = readRegister8_16bit(IQS5XX_SYS_GESTURE_EVENTS_0);
+  uint8_t gesture1 = readRegister8_16bit(IQS5XX_SYS_GESTURE_EVENTS_1);
+  touchData.swipeY_minus = (gesture0 & 0b00100000) != 0;
+  touchData.swipeY_plus  = (gesture0 & 0b00010000) != 0;
+  touchData.swipeX_plus  = (gesture0 & 0b00001000) != 0;
+  touchData.swipeX_minus = (gesture0 & 0b00000100) != 0;
+  touchData.pressAndHold = (gesture0 & 0b00000010) != 0;
+  touchData.singleTap    = (gesture0 & 0b00000001) != 0;
+  touchData.zoom         = (gesture1 & 0b00000100) != 0;
+  touchData.scroll       = (gesture1 & 0b00000010) != 0;
+  touchData.twoFingerTap = (gesture1 & 0b00000001) != 0;
+
   // Read touch strength (0x001A)
   touchData.touchStrength = readRegister8_16bit(IQS5XX_REG_TOUCH_STRENGTH);
   
@@ -150,6 +176,9 @@ bool IQS5XX_B000_Trackpad::readTouchData(TouchData &touchData) {
     touchData.state = SINGLE_TOUCH;
   }
   
+  //Get the amount of fingers touching the trackpad
+  uint8_t numFingers = readRegister8_16bit(IQS5XX_REG_NUM_FINGERS);
+  touchData.numFingers = numFingers;
   _lastTouchData = touchData;
   return true;
 }

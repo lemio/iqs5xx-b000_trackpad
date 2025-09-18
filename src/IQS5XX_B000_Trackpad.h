@@ -65,6 +65,10 @@
 #define IQS5XX_SYS_FLAG_SNAP          0x02
 #define IQS5XX_SYS_FLAG_SETUP         0x01
 
+#define IQS5XX_SYS_GESTURE_EVENTS_0   0x0D
+#define IQS5XX_SYS_GESTURE_EVENTS_1   0x0E
+
+#define IQS5XX_REG_NUM_FINGERS        0x0011
 // Touch states
 enum TouchState {
   NO_TOUCH = 0,
@@ -78,7 +82,17 @@ struct TouchData {
   uint16_t y;
   uint8_t touchStrength;
   uint8_t area;
+  uint8_t numFingers;
   TouchState state;
+  bool swipeY_minus; //bit 5 GESTURE_EVENTS_0
+  bool swipeY_plus;  //bit 4 GESTURE_EVENTS_0
+  bool swipeX_plus;  //bit 3 GESTURE_EVENTS_0
+  bool swipeX_minus; //bit 2 GESTURE_EVENTS_0
+  bool pressAndHold; //bit 1 GESTURE_EVENTS_0
+  bool singleTap;    //bit 0 GESTURE_EVENTS_0
+  bool zoom;         //bit 2 GESTURE_EVENTS_1
+  bool scroll;       //bit 1 GESTURE_EVENTS_1
+  bool twoFingerTap; //bit 0 GESTURE_EVENTS_1
 };
 
 /**
