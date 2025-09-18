@@ -351,6 +351,7 @@
                         buffer = lines.pop(); // Keep incomplete line in buffer
 
                         for (const line of lines) {
+                            console.log(Date.now(), line);
                             this.processSerialData(line.trim());
                         }
                     }
